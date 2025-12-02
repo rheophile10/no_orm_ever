@@ -131,11 +131,11 @@ def create_db_interface(
     sql_toml_path: Path,
     seeds_dir: Path | None = None,
 ) -> NotAnORM:
-    raw_sql = tomllib.loads(sql_toml_path.read_text(encoding="utf-8"))["sql"]
+    raw_toml = tomllib.loads(sql_toml_path.read_text(encoding="utf-8"))
     interface: NotAnORM = {}
     create_scripts: list[str] = []
 
-    for table_name, statements in raw_sql.items():
+    for table_name, statements in raw_toml.items():
         table_ns: dict[str, Any] = {}
 
         for stmt_name, sql_text in statements.items():

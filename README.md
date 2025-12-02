@@ -1,9 +1,7 @@
 
 plain SQL in a sql.toml file.
 ```toml
-[sql]
-
-[sql.videos]
+[videos]
 create = """
 CREATE TABLE IF NOT EXISTS videos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
