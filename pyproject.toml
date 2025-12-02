@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "no_orm_ever"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "sqlite-vec",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/no_orm_ever"]
