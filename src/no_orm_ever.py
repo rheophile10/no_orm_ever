@@ -62,7 +62,12 @@ def make_runner(db_path: Path, runner: Callable):
     return lambda *a, **kw: runner(db_path, *a, **kw)
 
 
-def load(db_path: Path | str, sql_toml_path: Path | str, seeds_dir: Path | None = None):
+Db = SimpleNamespace
+
+
+def load(
+    db_path: Path | str, sql_toml_path: Path | str, seeds_dir: Path | None = None
+) -> Db:
     db_interface = {}
     db_path = Path(db_path)
     sql_toml = validate_sql_toml(sql_toml_path)
@@ -97,7 +102,7 @@ def load(db_path: Path | str, sql_toml_path: Path | str, seeds_dir: Path | None 
     if seeds_dir:
         _seed_from_csv(db_path, seeds_dir, sql_toml)
 
-    return SimpleNamespace(**db_interface)
+    return Db(**db_interface)
 
 
 def _seed_from_csv(
