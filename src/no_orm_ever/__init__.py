@@ -3,7 +3,7 @@ from contextlib import contextmanager
 import sqlite3
 import csv
 from types import SimpleNamespace
-from typing import Iterable, Mapping, Any, TypedDict
+from typing import Iterable, Mapping, Any, TypedDict, Literal, Dict
 import numpy as np
 import sqlite_vec
 from functools import partial
@@ -13,6 +13,9 @@ import yaml
 class Vec0Row(TypedDict):
     id: int
     embedding: np.ndarray
+
+
+InterfaceType = Literal["namespace", "dict"]
 
 
 @contextmanager
@@ -187,8 +190,11 @@ def _seed_from_csv(
 
 
 def load(
-    db_path: Path | str, sql_yaml_path: Path | str, seeds_dir: Path | None = None
-) -> SimpleNamespace:
+    db_path: Path | str,
+    sql_yaml_path: Path | str,
+    seeds_dir: Path | None = None,
+    interface_type: InterfaceType = "namespace",
+) -> SimpleNamespace | Dict[str, Any]:
     db_interface = {}
     db_path = Path(db_path)
     sql_yaml = validate_sql_yaml(sql_yaml_path)
@@ -218,12 +224,20 @@ def load(
         else:
             ns["bulk"] = partial(_bulk, db_path, table_name)
 
-        db_interface[table_name] = SimpleNamespace(**ns)
+        if interface_type == "namespace":
+            db_interface[table_name] = SimpleNamespace(**ns)
+        else:
+            db_interface[table_name] = ns
 
     if seeds_dir:
         _seed_from_csv(db_path, seeds_dir, sql_yaml)
 
-    return SimpleNamespace(**db_interface)
+    if interface_type == "dict":
+        final_interface = db_interface
+    else:
+        final_interface = SimpleNamespace(**db_interface)
+
+    return final_interface
 
 
 __all__ = ["validate_sql_yaml", "load"]
