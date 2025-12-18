@@ -1,13 +1,13 @@
 from pathlib import Path
 from contextlib import contextmanager
 import sqlite3
-import tomllib
 import csv
 from types import SimpleNamespace
-from typing import Iterable, Mapping, Any, TypedDict, Callable
+from typing import Iterable, Mapping, Any, TypedDict
 import numpy as np
 import sqlite_vec
 from functools import partial
+import yaml
 
 
 class Vec0Row(TypedDict):
@@ -37,90 +37,31 @@ def db(path: Path | str):
         conn.close()
 
 
-def validate_sql_toml(toml_path: Path | str) -> dict[str, dict[str, str]]:
-    raw = tomllib.loads(Path(toml_path).read_text(encoding="utf-8"))
+def validate_sql_yaml(yaml_path: Path | str) -> dict[str, dict[str, str]]:
+    path = Path(yaml_path)
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as e:
+        die(f"Invalid YAML syntax: {e}")
 
+    if raw is None:
+        raw = {}  # empty file
     if not isinstance(raw, dict):
-        die("root must be a table of tables")
+        die("root must be a mapping of tables")
 
     for table, section in raw.items():
         if not isinstance(section, dict):
-            die(f"[{table}] must be a table")
+            die(f"[{table}] must be a mapping")
 
         for name, sql in section.items():
             if not isinstance(sql, str) or not sql.strip():
-                die(f"[{table}.{name}] must be non-empty SQL string")
+                die(f"[{table}.{name}] must be a non-empty SQL string")
 
     return raw
 
 
 def die(message: str):
-    raise ValueError(f"\n\nTHIS SQL.TOML IS BULLSHIT:\n    {message}\n")
-
-
-def make_runner(db_path: Path, runner: Callable):
-    return lambda *a, **kw: runner(db_path, *a, **kw)
-
-
-Db = SimpleNamespace
-
-
-def load(
-    db_path: Path | str, sql_toml_path: Path | str, seeds_dir: Path | None = None
-) -> Db:
-    db_interface = {}
-    db_path = Path(db_path)
-    sql_toml = validate_sql_toml(sql_toml_path)
-    vec_tables = []
-
-    if not db_path.exists() or db_path.stat().st_size == 0:
-        with db(db_path) as conn:
-            for section in sql_toml.values():
-                if "create" in section:
-                    conn.executescript(section["create"])
-                    if "vec0" in section["create"].lower():
-                        vec_tables.append(section)
-
-    for table_name, section in sql_toml.items():
-        ns = {}
-        is_vec_table = any(
-            isinstance(s, str) and ("vec0" in s.lower() or "vec(" in s.lower())
-            for s in section.values()
-        )
-        for stmt_name, sql in section.items():
-            if stmt_name == "create":
-                continue
-            ns[stmt_name] = partial(_run, sql, db_path)
-
-        if is_vec_table:
-            ns["bulk"] = partial(_bulk_vec0, db_path, table_name)
-        else:
-            ns["bulk"] = partial(_bulk, db_path, table_name)
-
-        db_interface[table_name] = SimpleNamespace(**ns)
-
-    if seeds_dir:
-        _seed_from_csv(db_path, seeds_dir, sql_toml)
-
-    return Db(**db_interface)
-
-
-def _seed_from_csv(
-    db_path: Path, seeds_dir: Path, sql_toml: dict[str, dict[str, str]]
-) -> None:
-    if not seeds_dir.exists():
-        return
-
-    for csv_path in sorted(seeds_dir.glob("*.csv"), key=lambda p: p.stat().st_mtime):
-        table_name = csv_path.stem
-        if table_name not in sql_toml:
-            continue
-
-        with csv_path.open(newline="", encoding="utf-8") as f:
-            rows = list(csv.DictReader(f))
-
-        if rows:
-            _bulk(db_path, table_name, rows, replace=True)
+    raise ValueError(f"\n\nTHIS SQL.YAML IS BULLSHIT:\n    {message}\n")
 
 
 def _run(sql: str, db_path: Path, data: Any = None) -> list[dict] | None:
@@ -212,19 +153,77 @@ def _bulk_vec0(
         return (row[id_column], vec.tobytes())
 
     batch.append(_prep(first))
+    total += 1
 
     for row in it:
         batch.append(_prep(row))
+        total += 1
         if len(batch) >= batch_size:
             _run(sql, db_path, batch)
-            total += len(batch)
             batch.clear()
 
     if batch:
         _run(sql, db_path, batch)
-        total += len(batch)
 
     return total
 
 
-__all__ = ["validate_sql_toml", "load"]
+def _seed_from_csv(
+    db_path: Path, seeds_dir: Path, sql_yaml: dict[str, dict[str, str]]
+) -> None:
+    if not seeds_dir.exists():
+        return
+
+    for csv_path in sorted(seeds_dir.glob("*.csv"), key=lambda p: p.stat().st_mtime):
+        table_name = csv_path.stem
+        if table_name not in sql_yaml:
+            continue
+
+        with csv_path.open(newline="", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+
+        if rows:
+            _bulk(db_path, table_name, rows, replace=True)
+
+
+def load(
+    db_path: Path | str, sql_yaml_path: Path | str, seeds_dir: Path | None = None
+) -> SimpleNamespace:
+    db_interface = {}
+    db_path = Path(db_path)
+    sql_yaml = validate_sql_yaml(sql_yaml_path)
+    vec_tables = []
+
+    if not db_path.exists() or db_path.stat().st_size == 0:
+        with db(db_path) as conn:
+            for section in sql_yaml.values():
+                if "create" in section:
+                    conn.executescript(section["create"])
+                    if "vec0" in section["create"].lower():
+                        vec_tables.append(section)
+
+    for table_name, section in sql_yaml.items():
+        ns = {}
+        is_vec_table = any(
+            isinstance(s, str) and ("vec0" in s.lower() or "vec(" in s.lower())
+            for s in section.values()
+        )
+        for stmt_name, sql in section.items():
+            if stmt_name == "create":
+                continue
+            ns[stmt_name] = partial(_run, sql, db_path)
+
+        if is_vec_table:
+            ns["bulk"] = partial(_bulk_vec0, db_path, table_name)
+        else:
+            ns["bulk"] = partial(_bulk, db_path, table_name)
+
+        db_interface[table_name] = SimpleNamespace(**ns)
+
+    if seeds_dir:
+        _seed_from_csv(db_path, seeds_dir, sql_yaml)
+
+    return SimpleNamespace(**db_interface)
+
+
+__all__ = ["validate_sql_yaml", "load"]

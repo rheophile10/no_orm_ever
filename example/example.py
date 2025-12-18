@@ -1,7 +1,11 @@
-from pathlib import Path
 from no_orm_ever import load
+from pathlib import Path
 
-db = load("dev.db", "example/example-sql.toml")
+if Path("dev.db").exists():
+    Path("dev.db").unlink()
+
+
+db = load("dev.db", "example/example-sql.yaml")
 
 db.users.bulk(
     [

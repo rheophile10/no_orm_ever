@@ -1,0 +1,17 @@
+users:
+  create: |
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT
+    );
+  insert: INSERT INTO users (name, email) VALUES (:name, :email) RETURNING *
+  get: SELECT * FROM users WHERE id = ?
+  all: SELECT * FROM users
+
+embeddings:
+  create: |
+    CREATE TABLE embeddings (
+    id INTEGER PRIMARY KEY,
+    embedding vec0(1536)
+    );
