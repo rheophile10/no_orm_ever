@@ -77,12 +77,12 @@ def execute_with_data(conn, sql: str, data: Any):
 def bulk(
     db_path: Path,
     table: str,
-    rows: Iterable[Mapping[str, Any]],
+    data: Iterable[Mapping[str, Any]],
     *,
     replace: bool = False,
     batch_size: int = 10_000,
 ) -> int:
-    it = iter(rows)
+    it = iter(data)
     try:
         first = next(it)
     except StopIteration:
