@@ -79,7 +79,6 @@ def bulk(
     table: str,
     data: Iterable[Mapping[str, Any]],
     *,
-    replace: bool = False,
     batch_size: int = 10_000,
 ) -> int:
     it = iter(data)
@@ -90,7 +89,7 @@ def bulk(
 
     columns = tuple(first.keys())
     placeholders = ",".join("?" for _ in columns)
-    prefix = "REPLACE INTO" if replace else "INSERT INTO"
+    prefix = "INSERT OR REPLACE INTO"
     sql = f"{prefix} {table} ({', '.join(columns)}) VALUES ({placeholders})"
 
     batch: list[tuple] = []
