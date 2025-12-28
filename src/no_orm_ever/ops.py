@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import sqlite3
 from pathlib import Path
 import sqlite_vec
-from typing import Any, Iterable, Mapping, TypedDict
+from typing import Any, Iterable, Mapping, TypedDict, Literal
 import numpy as np
 
 
@@ -74,10 +74,14 @@ def execute_with_data(conn, sql: str, data: Any):
         return conn.execute(sql, (data,))
 
 
+BulkStrategy = Literal["upsert", "deflect"]
+
+
 def bulk(
     db_path: Path,
     table: str,
     data: Iterable[Mapping[str, Any]],
+    strategy: BulkStrategy = "deflect",
     *,
     batch_size: int = 10_000,
 ) -> int:
@@ -88,9 +92,18 @@ def bulk(
         return 0
 
     columns = tuple(first.keys())
-    placeholders = ",".join("?" for _ in columns)
-    prefix = "INSERT OR REPLACE INTO"
-    sql = f"{prefix} {table} ({', '.join(columns)}) VALUES ({placeholders})"
+    placeholders = ",".join(f":{col}" for col in columns)
+    column_list = ", ".join(columns)
+
+    if strategy == "upsert":
+        sql = f"INSERT OR REPLACE INTO {table} ({column_list}) VALUES ({placeholders})"
+    elif strategy == "deflect":
+        sql = (
+            f"INSERT INTO {table} ({column_list}) VALUES ({placeholders}) "
+            f"ON CONFLICT DO NOTHING"
+        )
+    else:
+        raise ValueError(f"Unknown strategy: {strategy}")
 
     batch: list[tuple] = []
     total = 0
