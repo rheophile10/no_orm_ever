@@ -81,8 +81,8 @@ def bulk(
     db_path: Path,
     table: str,
     data: Iterable[Mapping[str, Any]],
-    strategy: BulkStrategy = "deflect",
     *,
+    strategy: BulkStrategy = "deflect",
     batch_size: int = 10_000,
 ) -> int:
     it = iter(data)
