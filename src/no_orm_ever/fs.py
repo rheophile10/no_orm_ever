@@ -50,7 +50,7 @@ def _seed_from_csv(
             rows = list(csv.DictReader(f))
 
         if rows:
-            bulk(db_path, table_name, rows, replace=True)
+            bulk(db_path, table_name, rows)
 
 
 def load(
@@ -70,7 +70,11 @@ def load(
                     conn.executescript(section["create"])
 
     for table_name, section in sql_yaml.items():
-        ns = {}
+        if table_name == "query":
+            print("Warning: skipping 'query' table as it's reserved")
+            continue
+        query_partial = partial(run, db_path=db_path)
+        ns = {"query": query_partial}
         is_vec_table = any(is_vec_sql(s) for s in section.values())
 
         if is_vec_table:
