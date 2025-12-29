@@ -59,7 +59,6 @@ def load(
     seeds_dir: Path | None = None,
     interface_type: InterfaceType = "namespace",
 ) -> SimpleNamespace | Dict[str, Any]:
-    db_interface = {}
     db_path = Path(db_path)
     sql_yaml = validate_sql_yaml(sql_yaml_path)
 
@@ -69,12 +68,22 @@ def load(
                 if "create" in section and is_write_sql(section["create"]):
                     conn.executescript(section["create"])
 
+    def convenience_run(
+        sql: str, data: Any = None, db_path: Path = db_path
+    ) -> list[dict] | None:
+        """so that I don't have to use keywords when I db.query("select * from users where name = :name", {"name": "Alice"}) - this is cheesy but I'm tired"""
+        return run(sql, db_path, data)
+
+    query_partial = partial(convenience_run, db_path=db_path)
+    db_interface = {"query": query_partial}
+
     for table_name, section in sql_yaml.items():
+        ns = {}
+
         if table_name == "query":
             print("Warning: skipping 'query' table as it's reserved")
             continue
-        query_partial = partial(run, db_path=db_path)
-        ns = {"query": query_partial}
+
         is_vec_table = any(is_vec_sql(s) for s in section.values())
 
         if is_vec_table:

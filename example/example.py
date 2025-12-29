@@ -17,6 +17,9 @@ db.users.bulk(
 new_user = db.users.insert([{"name": "Charlie", "email": "c@example.com"}])[0]
 print("Created:", dict(new_user))
 
+query_result = db.query("select * from users where name = :name", {"name": "Alice"})
+print("Query result:", [dict(row) for row in query_result])
+
 all_users = db.users.all()
 print("All users:", [dict(u) for u in all_users])
 
